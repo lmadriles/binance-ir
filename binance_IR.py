@@ -1,90 +1,53 @@
 import pandas as pd
-import numpy as np
-
-# treating the data
-binance = pd.read_csv('data/processed/extrato_binance.csv', index_col=0)
-binance.sort_index(inplace=True)
-binance['UTC_Time'] = pd.to_datetime(binance['UTC_Time'])
-
-pd.set_option('display.float_format', lambda x: '%.8f' % x) # change the visualization of a float to eight decimal digits.
 
 
-# fix one register in a dumb form 
-binance.loc[57,'UTC_Time'] = binance.loc[56,'UTC_Time']
-
-
-
-# Preparing data
 def cache_transaction(df, column):
     df['Ticker_cache'] = df['Coin'].shift() * (df[column] == df[column].shift())
     df['Value_cache'] = df['Change'].shift() * (df[column] == df[column].shift())
     return 
-cache_transaction(binance, 'UTC_Time')
-
-# Guardando info do saldo na binance
-wallet = binance.groupby('Coin').agg({'UTC_Time': 'first'}).sort_values('UTC_Time') # Primeira ocorrência de cada moeda
-wallet['Balance'] = 0
-wallet['BRL_spent'] = 0
-
-# trezor
-index_names = list(binance[binance['Operation'].isin(['Fiat Withdraw', 'Withdraw'])]['Coin'].unique())
-data = {'Amount': [0.0]*len(index_names), 'BRL_spent': [0.0]*len(index_names)}
-coldwallet = pd.DataFrame(data, index=index_names)
-
-
-# function to be aplied to the dataframe.
-
-# put the decorator here
-
 
 def triagem(serie):
-
-    if serie['Operation']=='Deposit':
-        deposit(serie)
-    elif serie['Operation']=='Transaction Related':
-        buy(serie)
-    elif serie['Operation']=='Large OTC Trading':
-        convert(serie)
-    elif serie['Operation']=='Fiat Withdraw':
-        withdraw(serie)
-    elif serie['Operation']=='Simple Earn Flexible Subscription': 
-        pass # do nothing
-    elif serie['Operation']=='Savings Distribution': # do nothing, entrada de LDticker no stake; par de 'Simple Earn Flexible Subscription'
-        pass # do nothing
-    elif serie['Operation']=='Staking Purchase': # amount goes from spot to earn;  
-        change_amount(serie)
-    elif serie['Operation']=='Launchpool Interest':
-        change_amount(serie)
-    elif serie['Operation']=='Simple Earn Flexible Interest':
-        change_amount(serie)
-    elif serie['Operation']=='Staking Rewards':
-        change_amount(serie)
-    elif serie['Operation']=='Simple Earn Flexible Redemption':
-        pass # do nothing; saida de LDticker no stake
-    elif serie['Operation']=='Staking Redemption': # amount goes from spot to earn; carries losses
-        change_amount(serie)
-    elif serie['Operation']=='Cash Voucher Distribution':
-        change_amount(serie)
-    elif serie['Operation']=='Withdraw':
-        withdraw(serie)
-    elif serie['Operation']=='Small Assets Exchange BNB':
-        multiple_BNB_trades(serie)
-    elif serie['Operation']=='Distribution':
-        change_amount(serie)
-    else:
-        raise ValueError('Operation not recognized') 
-
-        
-    if wallet.loc['BRL', 'Balance'] != wallet.loc['BRL', 'BRL_spent']:
-        print(wallet.loc['BRL'])
-
-    return
+    operation = serie['Operation']
     
+    actions = {
+        'Deposit': deposit,
+        'Transaction Related': buy,
+        'Large OTC Trading': convert,
+        'Fiat Withdraw': withdraw,
+        'Staking Purchase': change_amount,
+        'Launchpool Interest': change_amount,
+        'Simple Earn Flexible Interest': change_amount,
+        'Staking Rewards': change_amount,
+        'Staking Redemption': change_amount,
+        'Cash Voucher Distribution': change_amount,
+        'Withdraw': withdraw,
+        'Small Assets Exchange BNB': multiple_BNB_trades,
+        'Distribution': change_amount,
+        'Simple Earn Flexible Subscription': lambda x: None,
+        'Savings Distribution': lambda x: None,
+        'Simple Earn Flexible Redemption': lambda x: None
+    }
+    
+    action = actions.get(operation)
+    
+    if action is None:
+        raise ValueError('Operation not recognized')
+    
+    action(serie)
+
+       
 
 def deposit(serie):
-    wallet.loc[serie['Coin'],'Balance'] += serie['Change'] # add to wallet
-    wallet.loc[serie['Coin'],'BRL_spent'] += serie['Change']
-    return
+    if serie['Coin']=='BRL':
+        wallet.loc[serie['Coin'],'Balance'] += serie['Change']
+        wallet.loc[serie['Coin'],'BRL_spent'] += serie['Change']
+    else:
+        BRL_value = coldwallet.loc[serie['Coin'],'BRL_spent']/coldwallet.loc[serie['Coin'],'Amount']*serie['Change']
+        wallet.loc[serie['Coin'],'Balance'] += serie['Change']
+        wallet.loc[serie['Coin'],'BRL_spent'] += BRL_value
+        coldwallet.loc[serie['Coin'],'Amount'] -= serie['Change']
+        coldwallet.loc[serie['Coin'],'BRL_spent'] -= BRL_value
+    
 
 def buy(serie):
 
@@ -120,6 +83,9 @@ def convert(serie):
     if serie['Ticker_cache']=='': 
         return
     
+    if serie['Coin'] == 'BRL' or serie['Ticker_cache'] == 'BRL':
+        buy(serie)
+        return
  
     if serie['Change']<0: # means that serie['Coin'] is leaving; serie['Change'] is negative
         # serie['Coin'] BRL equivalent leaving
@@ -168,11 +134,33 @@ def multiple_BNB_trades(serie):
         wallet.loc['BNB', 'BRL_spent'] += wallet.loc[serie['Coin'], 'BRL_spent']
         wallet.loc[serie['Coin'], 'BRL_spent'] = 0
 
-def main():
-    binance.apply(triagem, axis=1)
 
+def main():
+    # treating the data
+    binance = pd.read_csv('data/processed/extrato_binance.csv', index_col=0)
+    binance.sort_index(inplace=True)
+    binance['UTC_Time'] = pd.to_datetime(binance['UTC_Time'])
+
+    # fix one register hardcode
+    binance.loc[57,'UTC_Time'] = binance.loc[56,'UTC_Time']
+
+    # Preparing data
+
+    cache_transaction(binance, 'UTC_Time')
+
+    # Guardando info do saldo na binance
+    wallet = binance.groupby('Coin').agg({'UTC_Time': 'first'}).sort_values('UTC_Time') # Primeira ocorrência de cada moeda
+    wallet['Balance'] = 0
+    wallet['BRL_spent'] = 0
+
+    # trezor
+    index_names = list(binance[binance['Operation'].isin(['Fiat Withdraw', 'Withdraw'])]['Coin'].unique())
+    data = {'Amount': [0.0]*len(index_names), 'BRL_spent': [0.0]*len(index_names)}
+    coldwallet = pd.DataFrame(data, index=index_names)
+
+    binance.apply(triagem, axis=1) 
     return
 
 
-if __name__ == "__main__":
+if __name__=='__main__':
     main()

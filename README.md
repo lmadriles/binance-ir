@@ -9,9 +9,13 @@ The project depends on the following Python libraries:
 - numpy
 
 
-You can easily install these dependencies using pip by running the following command:
+You can easily install these dependencies using pip by running the following command on terminal:
 
-pip install pandas numpy
+```
+conda create --name crypto python=3.10
+conda activate crypto
+pip install -r requirements.txt
+```
 
 
 ## How to use
