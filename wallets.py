@@ -332,6 +332,7 @@ def save_wallets(path):
     """
     summarized.to_csv(path + 'saldo_binance.csv')
     coldwallet.to_csv(path + 'saldo_trezor.csv')
+    wallet.to_csv(path + 'binance_dates.csv')
 
 def main():
     import_data('data/processed/extrato_binance.csv')

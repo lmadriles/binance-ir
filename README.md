@@ -26,7 +26,6 @@ The dataclean.py algorithm, will format the database to work with the algo binan
 
 ## Future improvements
 The algo works at the moment with fiat depositis in Brazilian Real (BRL). To be adjusted to other fiat deposits.
-Some transactions that need to be simultaneous are presenting a lag of one second, generating a bug. Needs to be fixed.
 
 ## License
 This project is licensed under the MIT License. Feel free to use and modify the code for your own purposes.
