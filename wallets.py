@@ -2,9 +2,10 @@ import pandas as pd
 
 def import_data(path):
     """Import the data"""
-    global binance
-    binance = pd.read_csv(path, index_col=0)
-    binance.sort_index(inplace=True)
+    #global binance
+    df = pd.read_csv(path, index_col=0)
+    df.sort_index(inplace=True)
+    return df
 
 # Preparing data
 def cache_transaction(df, column):
@@ -31,14 +32,13 @@ def init_wallets():
     This function initializes two global variables `wallet` and `coldwallet`.
     `wallet` contains each coin related in a transaction from `binance` dataframe, 
     with balance and BRL_spent initialized to 0.
-    `coldwallet` is a Pandas DataFrame that contains the coins withdrawal from binance, with amount and BRL_spent initialized to 0.0.
+    `coldwallet` is a Pandas DataFrame that contains the coins withdrawal from binance, with amount and BRL_spent initialized as 0.0.
 
     Returns:
-    None
+        A tuple containing the two dataframes: (wallet, coldwallet)
     
     """
     # Guardando info do saldo na binance
-    global wallet, coldwallet
     wallet = binance.groupby('Coin').agg({'UTC_Time': 'first'}).sort_values('UTC_Time') # Primeira ocorrência de cada moeda
     wallet['Balance'] = 0
     wallet['BRL_spent'] = 0
@@ -47,7 +47,8 @@ def init_wallets():
     index_names = list(binance[binance['Operation'].isin(['Fiat Withdraw', 'Withdraw'])]['Coin'].unique())
     data = {'Amount': [0.0]*len(index_names), 'BRL_spent': [0.0]*len(index_names)}
     coldwallet = pd.DataFrame(data, index=index_names)
-
+    return (wallet, coldwallet)
+      
       
 
 def deposit(serie):
@@ -255,6 +256,7 @@ def multiple_BNB_trades(serie):
         wallet.loc[coin, 'BRL_spent'] = 0
 
 
+
 def triagem(serie):
     """Process a Pandas series representing a Binance operation.
 
@@ -308,17 +310,17 @@ def treat_wallets():
     The resulting consolidated dataframe is stored in the global variable `summarized`.
 
     Parameters:
-    None
+        None
 
     Returns:
-    None
+        None
     """
-
     global summarized
-
     summarized = wallet[wallet['Balance']>=0.00000001].copy()
     summarized['Mean_price'] = summarized['BRL_spent']/summarized['Balance']
     coldwallet['Mean_price'] = coldwallet['BRL_spent']/coldwallet['Amount']
+    return 
+
 
 def save_wallets(path):
     """
@@ -334,18 +336,16 @@ def save_wallets(path):
     coldwallet.to_csv(path + 'saldo_trezor.csv')
     wallet.to_csv(path + 'binance_dates.csv')
 
+
 def main():
-    import_data('data/processed/extrato_binance.csv')
+    binance = import_data('data/processed/extrato_binance.csv')
     cache_transaction(binance, 'UTC_Time')
-    init_wallets()
+    wallet, coldwallet = init_wallets()
     binance.apply(triagem, axis=1) 
     treat_wallets()
     save_wallets('data/final/')
 
     return
 
-
 if __name__=='__main__':
     main()
-
-
