@@ -284,11 +284,13 @@ def triagem(serie):
         'Cash Voucher Distribution': change_amount,
         'Withdraw': withdraw,
         'Small Assets Exchange BNB': multiple_BNB_trades,
+        'Small Assets Exchange BNB (Spot)': multiple_BNB_trades,
         'Distribution': change_amount,
         'Simple Earn Flexible Subscription': lambda x: None,
         'Savings Distribution': lambda x: None,
-        'Simple Earn Flexible Redemption': lambda x: None
-    }
+        'Simple Earn Flexible Redemption': lambda x: None,
+        'Crypto Box': lambda x: None,
+        'Airdrop Assets': change_amount}
     
     action = actions.get(operation)
     
